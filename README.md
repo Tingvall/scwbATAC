@@ -14,6 +14,8 @@ library, match-set and genome-build disagreements before terminal publication.
 
 This is not a streaming method. It reads bounded typed matrix chunks and then
 materializes the selected sparse peak-by-cell matrix for chromVAR. The
+summary retains its materialized dimensions, nonzero count and R object size
+as a bounded-resource observation, not a streaming claim. The
 effective dependency versions and provider are recorded in transition
 evidence; a serial BiocParallel setting does not guarantee deterministic
 reruns across different dependency versions.

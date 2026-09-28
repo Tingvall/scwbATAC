@@ -120,18 +120,55 @@ test_chromvar_stale_source_contract <- function() {
     before <- c(artifacts = nrow(scworkbench::wb_art_list(fixture$bundle)),
       commits = nrow(DBI::dbGetQuery(fixture$bundle$con,
         "SELECT * FROM prov_commits;")))
+    before_files <- sort(list.files(fixture$root, all.files = TRUE,
+      recursive = TRUE, no.. = TRUE))
     failure <- try(scworkbench::wb_session_promote_current(fixture$bundle,
       staged$session, outputs = c("deviation_z", "deviation_raw",
         "motif_summary")), silent = TRUE)
     after <- c(artifacts = nrow(scworkbench::wb_art_list(fixture$bundle)),
       commits = nrow(DBI::dbGetQuery(fixture$bundle$con,
         "SELECT * FROM prov_commits;")))
-    if (!inherits(failure, "try-error") || !identical(before, after))
+    after_files <- sort(list.files(fixture$root, all.files = TRUE,
+      recursive = TRUE, no.. = TRUE))
+    if (!inherits(failure, "try-error") || !identical(before, after) ||
+        !identical(before_files, after_files))
       stop("stale source mutation was not rejected atomically: ", label,
         " result=", paste(as.character(failure), collapse = "\n"))
     .atac_test_close(fixture)
   }
-  cat("SCWBATAC_STALE_SOURCES_OK cases=3\n")
+  fixture <- .atac_test_fixture()
+  .atac_cached_match_set(fixture)
+  set.seed(1701L)
+  staged <- .atac_negative_run(fixture,
+    extra = list(motif_match_set = "cached_jaspar"))
+  motif <- scworkbench::wb_motifs(fixture$bundle,
+    motif_library = "jaspar2020_core_human")$motif_key[[1L]]
+  scworkbench::wb_motif_match_replace(fixture$bundle,
+    motif_match_set = "cached_jaspar", matrix_id = "ATAC_counts",
+    motif_library = "jaspar2020_core_human",
+    matches = data.frame(motif_key = motif,
+      feature_id = fixture$features[[1L]]),
+    organism = "human", genome_build = "hg19",
+    genome_provider = "BSgenome.Hsapiens.UCSC.hg19",
+    match_params = list(p_cutoff = 5e-5, w = 7L))
+  before <- c(artifacts = nrow(scworkbench::wb_art_list(fixture$bundle)),
+    commits = nrow(DBI::dbGetQuery(fixture$bundle$con,
+      "SELECT * FROM prov_commits;")))
+  before_files <- sort(list.files(fixture$root, all.files = TRUE,
+    recursive = TRUE, no.. = TRUE))
+  failure <- try(scworkbench::wb_session_promote_current(fixture$bundle,
+    staged$session, outputs = c("deviation_z", "deviation_raw",
+      "motif_summary")), silent = TRUE)
+  after <- c(artifacts = nrow(scworkbench::wb_art_list(fixture$bundle)),
+    commits = nrow(DBI::dbGetQuery(fixture$bundle$con,
+      "SELECT * FROM prov_commits;")))
+  after_files <- sort(list.files(fixture$root, all.files = TRUE,
+    recursive = TRUE, no.. = TRUE))
+  if (!inherits(failure, "try-error") || !identical(before, after) ||
+      !identical(before_files, after_files))
+    stop("stale cached-match membership was not rejected atomically")
+  .atac_test_close(fixture)
+  cat("SCWBATAC_STALE_SOURCES_OK cases=4\n")
   TRUE
 }
 

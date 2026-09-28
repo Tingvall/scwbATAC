@@ -199,6 +199,8 @@
   })
   counts <- methods::as(do.call(cbind, pieces), "dgCMatrix")
   dimnames(counts) <- list(features, source_cells)
+  materialized_dimensions <- as.integer(dim(counts))
+  materialized_nonzeros <- as.integer(Matrix::nnzero(counts))
   materialized_bytes <- as.numeric(utils::object.size(counts))
   nonzero <- Matrix::rowSums(counts) > 0
   if (!any(nonzero)) .atac_fail("selected peak matrix contains no nonzero peaks")
@@ -294,10 +296,14 @@
         motif_match_source = match_source,
         seqlevels_mode = params$seqlevels_mode,
         seqlevels_kept = filtered$kept,
+        seqlevels_dropped = filtered$dropped,
         n_peaks_input = as.integer(filtered$input),
         n_peaks_retained = as.integer(filtered$retained),
         n_peaks_nonzero = as.integer(length(features)),
         n_motifs = as.integer(nrow(summary)),
+        selected_materialized_matrix_dimensions =
+          materialized_dimensions,
+        selected_materialized_matrix_nonzeros = materialized_nonzeros,
         selected_materialized_matrix_bytes = materialized_bytes)))
   invisible(list(status = "ok"))
 }

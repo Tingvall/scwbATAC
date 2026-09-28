@@ -38,7 +38,7 @@ if (nzchar(.atac_core_root)) {
   unlink(fixture$root, recursive = TRUE, force = TRUE)
 }
 
-.atac_compare_oracle <- function(result, oracle) {
+.atac_compare_oracle <- function(result, oracle, cached = FALSE) {
   stopifnot(identical(sort(names(result$run$outputs)),
     c("deviation_raw", "deviation_z", "motif_summary")))
   for (name in c("deviation_z", "deviation_raw")) {
@@ -66,8 +66,85 @@ if (nzchar(.atac_core_root)) {
       " expected=", paste(expected[[field]], collapse = ","))
   for (field in numerics) stopifnot(identical(
     which(is.na(observed[[field]])), which(is.na(expected[[field]]))),
-    isTRUE(all.equal(as.numeric(observed[[field]]),
-      as.numeric(expected[[field]]), tolerance = 1e-6)))
+      isTRUE(all.equal(as.numeric(observed[[field]]),
+        as.numeric(expected[[field]]), tolerance = 1e-6)))
+  expected_params <- oracle$outputs$effective_params
+  if (isTRUE(cached)) {
+    expected_params$motif_match_set <- "cached_jaspar"
+    expected_params$motif_match_source <- "registry"
+  }
+  parameters <- c("motif_library", "motifs", "motif_match_set",
+    "min_motif_peaks", "max_motif_peaks", "motif_p_cutoff", "motif_w",
+    "seqlevels_mode", "seqlevels_include", "seqlevels_exclude",
+    "background_iterations", "background_w", "background_bs")
+  for (name in parameters) if (!identical(result$run$params[[name]],
+      expected_params[[name]]))
+    stop("effective parameter differs from frozen oracle: ", name)
+  meta <- result$run$outputs$motif_summary$meta
+  retained <- c("matrix_id", "genome_pkg", "motif_library",
+    "motif_match_set", "motif_match_source", "seqlevels_mode",
+    "n_peaks_input", "n_peaks_retained", "n_peaks_nonzero", "n_motifs")
+  for (name in retained) if (!identical(meta[[name]],
+      expected_params[[name]]))
+    stop("retained effective parameter differs from frozen oracle: ", name)
+  for (name in c("seqlevels_kept", "seqlevels_dropped"))
+    if (!identical(as.character(unlist(meta[[name]], use.names = FALSE)),
+        as.character(expected_params[[name]])))
+      stop("retained seqlevel selection differs from frozen oracle: ", name)
+  stopifnot(identical(as.integer(result$run$inputs$effective_n),
+      as.integer(expected_params$n_cells)),
+    identical(unique(as.character(result$run$outputs$deviation_z$cell_id)),
+      oracle$input$cell_ids),
+    identical(as.character(result$run$inputs$user_inputs$matrix),
+      oracle$input$matrix),
+    identical(as.character(result$run$inputs$user_inputs$cell_set),
+      oracle$input$cell_set),
+    identical(as.character(result$run$inputs$parents),
+      as.character(oracle$outputs$ancestry)),
+    identical(as.integer(unlist(meta$selected_materialized_matrix_dimensions,
+      use.names = FALSE)), as.integer(oracle$selected_matrix$dimensions)),
+    identical(as.integer(meta$selected_materialized_matrix_nonzeros),
+      as.integer(oracle$selected_matrix$nonzero)),
+    is.finite(meta$selected_materialized_matrix_bytes),
+    meta$selected_materialized_matrix_bytes > 0)
+  transition <- result$run$operation_pack_transition
+  stage <- file.path(scworkbench:::.wb_operation_pack_v2_store(
+    result$session$staging_bundle), transition$transition_id)
+  record <- scworkbench:::.wb_operation_pack_v2_record_validate(stage,
+    load_payloads = TRUE)
+  stopifnot(isTRUE(record$ok))
+  registry <- stats::setNames(record$request$registry_reads,
+    vapply(record$request$registry_reads, `[[`, character(1), "name"))
+  stopifnot(setequal(names(registry),
+    c("genomic_source", "motif_library", "motif_match_set")))
+  for (name in names(registry)) stopifnot(
+    nchar(registry[[name]]$descriptor$ancestry_identity$sha256) == 64L)
+  genomic <- jsonlite::read_json(file.path(stage, "registry_reads",
+    "genomic_source", "payload.json"), simplifyVector = FALSE)
+  library <- jsonlite::read_json(file.path(stage, "registry_reads",
+    "motif_library", "payload.json"), simplifyVector = FALSE)
+  matches <- jsonlite::read_json(file.path(stage, "registry_reads",
+    "motif_match_set", "payload.json"), simplifyVector = FALSE)
+  provider <- record$request$dependency_resolution$dynamic[[1L]]
+  version <- as.character(utils::packageVersion(expected_params$genome_pkg))
+  artifact_identity <- scworkbench:::.wb_operation_pack_v2_identity_plain(
+    "scworkbench.r_package.artifact.v1",
+    list(name = expected_params$genome_pkg, version = version))
+  probe_identity <- scworkbench:::.wb_operation_pack_v2_identity_plain(
+    "scworkbench.r_namespace_exports.v1",
+    getNamespaceExports(expected_params$genome_pkg))
+  stopifnot(identical(genomic$matrix_id, expected_params$matrix_id),
+    identical(as.character(unlist(genomic$cell_id, use.names = FALSE)),
+      oracle$input$cell_ids),
+    identical(genomic$genome_provider, expected_params$genome_pkg),
+    identical(library$motif_library, expected_params$motif_library),
+    identical(matches$selection, expected_params$motif_match_set),
+    identical(provider$provider_name, expected_params$genome_pkg),
+    identical(provider$resolved_package$version, version),
+    identical(provider$resolved_package$artifact_identity,
+      artifact_identity),
+    identical(provider$resolved_package$probe_evidence_identity,
+      probe_identity))
   TRUE
 }
 
@@ -122,10 +199,6 @@ test_chromvar_live_oracle <- function() {
   oracle <- readRDS(file.path("tests", "fixtures",
     "old_core_chromvar_oracle.rds"))
   stopifnot(.atac_compare_oracle(result, oracle))
-  stopifnot(is.finite(result$run$outputs$motif_summary$meta$
-    selected_materialized_matrix_bytes),
-    result$run$outputs$motif_summary$meta$
-      selected_materialized_matrix_bytes > 0)
   source_counts <- c(artifacts = nrow(scworkbench::wb_art_list(fixture$bundle)),
     runs = nrow(DBI::dbGetQuery(fixture$bundle$con,
       "SELECT * FROM prov_runs;")),
@@ -244,7 +317,7 @@ test_chromvar_cached_oracle <- function() {
       chunk_size = 35L, cell_set = "all"))
   oracle <- readRDS(file.path("tests", "fixtures",
     "old_core_chromvar_oracle.rds"))
-  stopifnot(.atac_compare_oracle(result, oracle))
+  stopifnot(.atac_compare_oracle(result, oracle, cached = TRUE))
   promoted <- scworkbench::wb_session_promote_current(fixture$bundle,
     result$session, outputs = c("deviation_z", "deviation_raw",
       "motif_summary"), created_by = "phase7-cached-chromvar")

@@ -1,10 +1,10 @@
 Package: scwbATAC
 Type: Package
 Title: Authenticated ATAC Operation Pack for scworkbench
-Version: 0.1.0
+Version: 0.1.1
 Depends: R (>= 3.5.0)
 Authors@R: person("scworkbench", "Contributors", email = "team@example.invalid", role = c("aut", "cre"))
-Description: Genome-backed chromVAR deviations using ABI-v3 authenticated matrix, genomic-source, motif-registry, runtime-key, and atomic terminal capabilities.
+Description: Highly variable peak selection and genome-backed chromVAR deviations using ABI-v3 authenticated matrix, genomic-source, motif-registry, runtime-key, and atomic terminal capabilities.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Imports: scworkbench, methods, Matrix, chromVAR, SummarizedExperiment, GenomicRanges, GenomeInfoDb, S4Vectors, BiocParallel, TFBSTools, motifmatchr, IRanges, jsonlite

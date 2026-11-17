@@ -1,12 +1,34 @@
 # scwbATAC
 
-`scwbATAC` owns the `scwbatac::chromvar` method for scworkbench. Install the
+`scwbATAC` owns the `scwbatac::chromvar` and `scwbatac::hvp_select` methods for
+scworkbench. Install the
 pack and its Bioconductor dependencies, then activate its installed manifest
 with `scworkbench::wb_operation_pack_activate()` before execution. The engine
 retains the matrix, genome-provider, motif-library and optional cached-match
 registries; the pack receives only bounded authenticated readers and writers.
 
-The method emits `deviation_z` and `deviation_raw` as complete cell-major
+`hvp_select` selects highly variable peaks from a count-like peak matrix. It
+binarizes accessibility for scoring, optionally removes the linear association
+with `log1p(detected peaks per cell)`, and supports inclusive minimum and
+maximum detection-percentage filters. Depth adjustment changes only the
+ranking statistic; the operation never residualizes or replaces the source
+matrix. It emits the complete scoring ledger as `selected_features` and an
+auditable `fit_summary`.
+
+```r
+result <- scworkbench::wb_session_run_op(
+  session, bundle, "scwbatac::hvp_select",
+  inputs = list(
+    matrix = "ATAC_counts",
+    n_features = 25000L,
+    depth_adjustment = TRUE,
+    min_detection_pct = 0.5,
+    max_detection_pct = 95
+  )
+)
+```
+
+`chromvar` emits `deviation_z` and `deviation_raw` as complete cell-major
 `cell_vector_family` artifacts and `motif_summary` as the third terminal in
 one atomic closure. Finite values and `NA_real_` retain exact cell/key
 positions across promotion and recipient reopen. The pack rejects provider,

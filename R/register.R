@@ -8,5 +8,6 @@
 register_operation_pack <- function() {
   scworkbench::wb_operation_pack_register(
     system.file("scworkbench", "operation-pack.json", package = "scwbATAC"),
-    list(`scwbatac::chromvar` = .atac_chromvar))
+    list(`scwbatac::chromvar` = .atac_chromvar,
+      `scwbatac::hvp_select` = .atac_hvp_select))
 }

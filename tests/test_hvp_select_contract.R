@@ -112,7 +112,61 @@ test_hvp_select_depth_and_detection_contract <- function() {
   TRUE
 }
 
+test_hvp_select_large_sparse_axis_contract <- function() {
+  root <- tempfile("scwbatac-hvp-large-sparse-")
+  bundle <- scworkbench::wb_init_bundle(root)
+  on.exit({
+    try(scworkbench::wb_close_bundle(bundle), silent = TRUE)
+    unlink(root, recursive = TRUE, force = TRUE)
+  }, add = TRUE)
+  n_features <- 40000L
+  cells <- paste0("cell_", seq_len(12L))
+  peaks <- paste0("chr1:", seq_len(n_features), "-", seq_len(n_features))
+  values <- Matrix::sparseMatrix(
+    i = c(seq_len(12L), 13:18),
+    j = c(seq_len(12L), 7:12),
+    x = 1,
+    dims = c(n_features, length(cells)),
+    dimnames = list(peaks, cells))
+  scworkbench::wb_define_cells(bundle, cells)
+  scworkbench::wb_attach_matrix(bundle, "ATAC_counts", values,
+    feature_type = "peak")
+
+  method <- methods::selectMethod("%*%",
+    c("CsparseMatrix", "numLike"))
+  stopifnot(!inherits(method, "MethodDefinitionWithTrace"))
+  trace("%*%", signature = c("CsparseMatrix", "numLike"),
+    print = FALSE, tracer = quote(
+      stop("hvp_select used dense-producing sparse-by-numeric multiplication")))
+  on.exit(untrace("%*%",
+    signature = c("CsparseMatrix", "numLike")), add = TRUE)
+
+  adjusted <- scworkbench::wb_session_run_op(
+    scworkbench::wb_session_new(), bundle, "scwbatac::hvp_select",
+    inputs = list(matrix = "ATAC_counts", n_features = 10L,
+      depth_adjustment = TRUE, min_detection_pct = 0,
+      max_detection_pct = 100, chunk_size = 4L,
+      cell_set = "all", min_cells = 2L))
+  raw <- scworkbench::wb_session_run_op(
+    scworkbench::wb_session_new(), bundle, "scwbatac::hvp_select",
+    inputs = list(matrix = "ATAC_counts", n_features = 10L,
+      depth_adjustment = FALSE, min_detection_pct = 0,
+      max_detection_pct = 100, chunk_size = 4L,
+      cell_set = "all", min_cells = 2L))
+  adjusted_table <- adjusted$run$outputs$selected_features$table
+  raw_table <- raw$run$outputs$selected_features$table
+  stopifnot(nrow(adjusted_table) == n_features,
+    nrow(raw_table) == n_features,
+    all(raw_table$residual_variance == raw_table$raw_variance),
+    all(raw_table$depth_slope == 0),
+    all(raw_table$depth_r_squared == 0),
+    all(raw_table$depth_adjustment_status == "not_requested"))
+  TRUE
+}
+
 if (identical(Sys.getenv("SCWBATAC_RUN_HVP", ""), "1")) {
   test_hvp_select_depth_and_detection_contract()
   cat("PASS test_hvp_select_depth_and_detection_contract\n")
+  test_hvp_select_large_sparse_axis_contract()
+  cat("PASS test_hvp_select_large_sparse_axis_contract\n")
 }

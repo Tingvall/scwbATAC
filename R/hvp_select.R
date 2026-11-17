@@ -28,9 +28,11 @@
 
   detected <- numeric(length(features))
   accessibility_depth <- numeric(n_cells)
-  sum_y_log_depth <- numeric(length(features))
-  sum_log_depth <- 0
-  sum_log_depth_squared <- 0
+  if (adjust_depth) {
+    sum_y_log_depth <- numeric(length(features))
+    sum_log_depth <- 0
+    sum_log_depth_squared <- 0
+  }
   offset <- 0L
   chunks <- scworkbench::wb_partition_axis(cells,
     as.integer(params$chunk_size %||% 256L))
@@ -42,40 +44,51 @@
       .atac_fail("hvp_select typed slice changed the authenticated matrix axes")
     binary <- primitive$values > 0
     chunk_depth <- as.numeric(Matrix::colSums(binary))
-    log_depth <- log1p(chunk_depth)
     index <- seq.int(offset + 1L, offset + length(chunk_cells))
     accessibility_depth[index] <- chunk_depth
     offset <- offset + length(chunk_cells)
     detected <- detected + as.numeric(Matrix::rowSums(binary))
-    sum_y_log_depth <- sum_y_log_depth + as.numeric(binary %*% log_depth)
-    sum_log_depth <- sum_log_depth + sum(log_depth)
-    sum_log_depth_squared <- sum_log_depth_squared + sum(log_depth^2)
+    if (adjust_depth) {
+      log_depth <- log1p(chunk_depth)
+      sparse_log_depth <- Matrix::Matrix(log_depth, ncol = 1L,
+        sparse = TRUE)
+      sum_y_log_depth <- sum_y_log_depth +
+        as.numeric(binary %*% sparse_log_depth)
+      sum_log_depth <- sum_log_depth + sum(log_depth)
+      sum_log_depth_squared <- sum_log_depth_squared + sum(log_depth^2)
+    }
   }
 
   mean_accessibility <- detected / n_cells
   detection_pct <- 100 * mean_accessibility
   total_ss <- pmax(0, detected - detected^2 / n_cells)
   raw_variance <- total_ss / (n_cells - 1L)
-  centered_depth_ss <- pmax(0,
-    sum_log_depth_squared - sum_log_depth^2 / n_cells)
-  centered_cross_product <- sum_y_log_depth -
-    detected * sum_log_depth / n_cells
-  depth_varies <- is.finite(centered_depth_ss) &&
-    centered_depth_ss > sqrt(.Machine$double.eps)
-  if (depth_varies) {
-    depth_slope <- centered_cross_product / centered_depth_ss
-    explained_ss <- pmin(total_ss, pmax(0,
-      centered_cross_product^2 / centered_depth_ss))
-    residual_ss <- pmax(0, total_ss - explained_ss)
-    residual_variance <- residual_ss / (n_cells - 2L)
-    depth_r_squared <- ifelse(total_ss > 0, explained_ss / total_ss, 0)
-    adjustment_status <- if (adjust_depth) "applied" else "not_requested"
+  if (adjust_depth) {
+    centered_depth_ss <- pmax(0,
+      sum_log_depth_squared - sum_log_depth^2 / n_cells)
+    centered_cross_product <- sum_y_log_depth -
+      detected * sum_log_depth / n_cells
+    depth_varies <- is.finite(centered_depth_ss) &&
+      centered_depth_ss > sqrt(.Machine$double.eps)
+    if (depth_varies) {
+      depth_slope <- centered_cross_product / centered_depth_ss
+      explained_ss <- pmin(total_ss, pmax(0,
+        centered_cross_product^2 / centered_depth_ss))
+      residual_ss <- pmax(0, total_ss - explained_ss)
+      residual_variance <- residual_ss / (n_cells - 2L)
+      depth_r_squared <- ifelse(total_ss > 0, explained_ss / total_ss, 0)
+      adjustment_status <- "applied"
+    } else {
+      depth_slope <- rep(0, length(features))
+      residual_variance <- raw_variance
+      depth_r_squared <- rep(0, length(features))
+      adjustment_status <- "constant_depth"
+    }
   } else {
     depth_slope <- rep(0, length(features))
     residual_variance <- raw_variance
     depth_r_squared <- rep(0, length(features))
-    adjustment_status <- if (adjust_depth) "constant_depth" else
-      "not_requested"
+    adjustment_status <- "not_requested"
   }
   score <- if (adjust_depth) residual_variance else raw_variance
   method <- if (adjust_depth) "log_depth_residual_variance" else

@@ -11,7 +11,7 @@ if (identical(Sys.getenv("SCWBATAC_RUN_SUITE", ""), "1")) {
     list(name = "seqlevels", file = "tests/test_chromvar_seqlevels_contract.R",
       flag = "SCWBATAC_RUN_SEQLEVELS", n = 1L),
     list(name = "hvp_select", file = "tests/test_hvp_select_contract.R",
-      flag = "SCWBATAC_RUN_HVP", n = 1L)
+      flag = "SCWBATAC_RUN_HVP", n = 2L)
   )
   discovered <- sum(vapply(cases, `[[`, integer(1), "n"))
   passed <- failed <- 0L

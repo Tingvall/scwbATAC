@@ -3,10 +3,10 @@
   "pack_abi_version": "3",
   "identity_scheme": "scworkbench.operation_pack.canonical_json.v1",
   "namespace": "scwbatac",
-  "package": {"name": "scwbATAC", "version": "0.1.1"},
+  "package": {"name": "scwbATAC", "version": "0.1.2"},
   "backend": "R",
   "compatibility": {
-    "scworkbench": {"minimum": "0.1.0", "maximum_exclusive": "0.2.0"},
+    "scworkbench": {"minimum": "0.1.2", "maximum_exclusive": "0.2.0"},
     "pack_abi": {"minimum": "3", "maximum": "3"}
   },
   "entry_point": "scwbATAC::register_operation_pack",
@@ -76,12 +76,12 @@
         "group": "motif_keys", "source_read": "genomic_source",
         "row_order": "cell_major_then_declared_key_v1",
         "missing_values": "allowed",
-        "maximum_keys": 10000, "maximum_rows": 10000000},
+        "maximum_keys": 10000, "maximum_rows": 12000000},
       {"output": "deviation_raw", "policy": "runtime_ordered_cell_family_v1",
         "group": "motif_keys", "source_read": "genomic_source",
         "row_order": "cell_major_then_declared_key_v1",
         "missing_values": "allowed",
-        "maximum_keys": 10000, "maximum_rows": 10000000},
+        "maximum_keys": 10000, "maximum_rows": 12000000},
       {"output": "motif_summary", "policy": "data_dependent_table_v1"}
     ],
     "outputs": [

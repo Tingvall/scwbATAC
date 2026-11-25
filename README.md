@@ -33,6 +33,11 @@ result <- scworkbench::wb_session_run_op(
 one atomic closure. Finite values and `NA_real_` retain exact cell/key
 positions across promotion and recipient reopen. The pack rejects provider,
 library, match-set and genome-build disagreements before terminal publication.
+The authenticated runtime-family grant is qualified through 12,000,000 rows
+per family, covering the 3,730-cell by 2,957-motif (11,029,610-row) shape.
+Finite subnormal chromVAR p-values remain numeric doubles and use the core
+typed-table content identity when the narrower canonical-JSON identity cannot
+represent them; they are not rounded, floored or converted to strings.
 
 This is not a streaming method. It reads bounded typed matrix chunks and then
 materializes the selected sparse peak-by-cell matrix for chromVAR. The
